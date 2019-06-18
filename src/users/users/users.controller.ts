@@ -25,7 +25,7 @@ export class UsersController {
                 },
                 error =>
                     res.status(HttpStatus.GATEWAY_TIMEOUT).json({
-                        error: error,
+                        error,
                     }),
             );
     }
