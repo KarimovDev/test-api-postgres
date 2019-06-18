@@ -4,7 +4,7 @@ import { UsersService } from '../users/users.service';
 import { Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { ValidateObjectId } from '../user.pipes';
 import { UsersResponse } from '../user.dto';
-import { take } from 'rxjs/operators';
+import { take, retry } from 'rxjs/operators';
 
 @Controller('users')
 export class UsersController {
@@ -14,11 +14,20 @@ export class UsersController {
     vk(@Res() res, @Query('id', new ValidateObjectId()) id): void {
         this.usersService
             .getUser(Number(id))
-            .pipe(take(1))
-            .subscribe(result => {
-                const data = result.data as UsersResponse;
-                return res.status(HttpStatus.OK).json(data);
-            });
+            .pipe(
+                retry(3),
+                take(1),
+            )
+            .subscribe(
+                result => {
+                    const data = result.data as UsersResponse;
+                    return res.status(HttpStatus.OK).json(data);
+                },
+                error =>
+                    res.status(HttpStatus.GATEWAY_TIMEOUT).json({
+                        error: error,
+                    }),
+            );
     }
 
     @Get()
