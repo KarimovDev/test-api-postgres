@@ -6,6 +6,9 @@ export class User {
     id: number;
 
     @Column()
+    vkId: number;
+
+    @Column()
     firstName: string;
 
     @Column()

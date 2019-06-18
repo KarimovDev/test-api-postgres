@@ -11,9 +11,9 @@ export class UsersController {
     constructor(private usersService: UsersService) {}
 
     @Get('vk')
-    vk(@Res() res, @Query('id', new ValidateObjectId()) id): void {
+    vk(@Res() res, @Query('vkId', new ValidateObjectId()) vkId): void {
         this.usersService
-            .getUser(Number(id))
+            .getUser(Number(vkId))
             .pipe(
                 retry(3),
                 take(1),
@@ -41,16 +41,13 @@ export class UsersController {
     }
 
     @Put(':id/update')
-    async update(
-        @Param('id', new ValidateObjectId()) id,
-        @Body() user: User,
-    ): Promise<any> {
+    async update(@Param('id') id, @Body() user: User): Promise<any> {
         user.id = Number(id);
         return this.usersService.update(user);
     }
 
     @Delete(':id/delete')
-    async delete(@Param('id', new ValidateObjectId()) id): Promise<any> {
+    async delete(@Param('id') id): Promise<any> {
         return this.usersService.delete(id);
     }
 }
