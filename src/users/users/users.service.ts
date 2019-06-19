@@ -74,11 +74,12 @@ export class UsersService implements OnModuleInit {
                 users[i].firstName = el.first_name;
                 users[i].lastName = el.last_name;
                 users[i].image = el.photo_200_orig;
-                this.client.hmset(el.id.toString(), users[i]);
-                this.client.expire(
-                    el.id.toString(),
-                    Number(this.config.get('EXPIRE_TIME')),
-                );
+                this.client.hmset(el.id.toString(), users[i]).then(() => {
+                    this.client.expire(
+                        el.id.toString(),
+                        Number(this.config.get('EXPIRE_TIME')),
+                    );
+                });
             }
         }
 
@@ -107,11 +108,12 @@ export class UsersService implements OnModuleInit {
             user.firstName = vkUser.first_name;
             user.lastName = vkUser.last_name;
             user.image = vkUser.photo_200_orig;
-            this.client.hmset(vkUser.id.toString(), user);
-            this.client.expire(
-                vkUser.id.toString(),
-                Number(this.config.get('EXPIRE_TIME')),
-            );
+            this.client.hmset(vkUser.id.toString(), user).then(() => {
+                this.client.expire(
+                    vkUser.id.toString(),
+                    Number(this.config.get('EXPIRE_TIME')),
+                );
+            });
         }
 
         return user;
