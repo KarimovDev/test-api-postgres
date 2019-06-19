@@ -1,41 +1,127 @@
-import { Injectable, HttpService } from '@nestjs/common';
-import { User } from '../user.entity';
+import { Injectable, HttpService, OnModuleInit } from '@nestjs/common';
+import { Note } from '../note.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { AxiosResponse } from 'axios';
 import { Observable } from 'rxjs';
-import { UsersResponse } from '../user.dto';
-
-const apiKey =
-    '8f914c7d6af1e2c255aad8796c24250ecfd48013f405779eb83e9611f3be0089986c3410c4e4fdf06148e';
-const extUrl = 'https://api.vk.com/method';
+import { UsersResponse, User, UserDTO } from '../user.dto';
+import { RedisService } from 'nestjs-redis';
+import { ConfigService } from 'src/config.service';
+import { Redis } from 'ioredis';
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
+    client: Redis;
+
     constructor(
-        @InjectRepository(User)
-        private userRepository: Repository<User>,
+        @InjectRepository(Note)
+        private noteRepository: Repository<Note>,
         private httpService: HttpService,
+        private readonly redisService: RedisService,
+        private readonly config: ConfigService,
     ) {}
 
-    getUser(id: number): Observable<AxiosResponse<UsersResponse>> {
-        const url: string = `${extUrl}/users.get?user_ids=${id}&v=5.95&fields=photo_200_orig&access_token=${apiKey}`;
+    async onModuleInit() {
+        this.client = await this.redisService.getClient();
+    }
+
+    getUser(idString: string): Observable<AxiosResponse<UsersResponse>> {
+        const url: string = `${this.config.get(
+            'EXT_URL',
+        )}/users.get?user_ids=${idString}&v=5.95&fields=photo_200_orig&access_token=${this.config.get(
+            'API_KEY',
+        )}`;
         return this.httpService.get(url);
     }
 
+    getEmptyUser(): User {
+        return {
+            id: 0,
+            firstName: '',
+            lastName: '',
+            image: '',
+            note: '',
+        };
+    }
+
     async findAll(): Promise<User[]> {
-        return await this.userRepository.find();
+        const notes = await this.noteRepository.find();
+        const users: User[] = [];
+        let usersString = '';
+        const usersMap = new Map();
+
+        for (const [i, el] of notes.entries()) {
+            const redisUser = (await this.client.hgetall(
+                el.id.toString(),
+            )) as User;
+            users[i] = this.getEmptyUser();
+            users[i].id = el.id;
+            users[i].note = el.note;
+            if (redisUser.id) {
+                users[i].firstName = redisUser.firstName;
+                users[i].lastName = redisUser.lastName;
+                users[i].image = redisUser.image;
+            } else {
+                usersString += el.id + ',';
+                usersMap.set(el.id, i);
+            }
+        }
+
+        if (usersString !== '') {
+            const vkResponse = await this.getUser(usersString).toPromise();
+            for (const el of vkResponse.data.response) {
+                const i = usersMap.get(el.id);
+                users[i].firstName = el.first_name;
+                users[i].lastName = el.last_name;
+                users[i].image = el.photo_200_orig;
+                this.client.hmset(el.id.toString(), users[i]);
+                this.client.expire(
+                    el.id.toString(),
+                    Number(this.config.get('EXPIRE_TIME')),
+                );
+            }
+        }
+
+        return users;
     }
 
-    async create(user: User): Promise<User> {
-        return await this.userRepository.save(user);
+    async create(note: Note): Promise<User> {
+        const savedNote = await this.noteRepository.save(note);
+
+        const redisUser = (await this.client.hgetall(
+            savedNote.id.toString(),
+        )) as User;
+
+        const user: User = this.getEmptyUser();
+        user.id = savedNote.id;
+        user.note = savedNote.note;
+        if (redisUser.id) {
+            user.firstName = redisUser.firstName;
+            user.lastName = redisUser.lastName;
+            user.image = redisUser.image;
+        } else {
+            const vkResponse = await this.getUser(
+                savedNote.id.toString(),
+            ).toPromise();
+            const vkUser = vkResponse.data.response[0] as UserDTO;
+            user.firstName = vkUser.first_name;
+            user.lastName = vkUser.last_name;
+            user.image = vkUser.photo_200_orig;
+            this.client.hmset(vkUser.id.toString(), user);
+            this.client.expire(
+                vkUser.id.toString(),
+                Number(this.config.get('EXPIRE_TIME')),
+            );
+        }
+
+        return user;
     }
 
-    async update(user: User): Promise<UpdateResult> {
-        return await this.userRepository.update(user.id, user);
+    async update(note: Note): Promise<UpdateResult> {
+        return await this.noteRepository.update(note.id, note);
     }
 
     async delete(id: number): Promise<DeleteResult> {
-        return await this.userRepository.delete(id);
+        return await this.noteRepository.delete(id);
     }
 }

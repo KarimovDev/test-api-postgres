@@ -26,6 +26,8 @@
 
 ## Description
 
+CHANGE NODE_ENV TO TEST AND SETUP APIKEY UNTIL START!
+
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
 ## Installation
