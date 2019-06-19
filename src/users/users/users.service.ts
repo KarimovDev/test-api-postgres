@@ -8,6 +8,7 @@ import { UsersResponse, User, UserDTO } from '../user.dto';
 import { RedisService } from 'nestjs-redis';
 import { ConfigService } from 'src/config.service';
 import { Redis } from 'ioredis';
+import { stringify } from 'query-string';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -26,11 +27,17 @@ export class UsersService implements OnModuleInit {
     }
 
     getUser(idString: string): Observable<AxiosResponse<UsersResponse>> {
+        const parsed = {
+            user_ids: idString,
+            v: '5.95',
+            fields: 'photo_200_orig',
+            access_token: this.config.get('API_KEY'),
+        };
+        const stringified = stringify(parsed);
+
         const url: string = `${this.config.get(
             'EXT_URL',
-        )}/users.get?user_ids=${idString}&v=5.95&fields=photo_200_orig&access_token=${this.config.get(
-            'API_KEY',
-        )}`;
+        )}/users.get?${stringified}`;
         return this.httpService.get(url);
     }
 
