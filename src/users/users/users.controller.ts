@@ -3,7 +3,7 @@ import { Note } from '../note.entity';
 import { UsersService } from '../users/users.service';
 import { Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { ValidateOrderDirection } from '../user.pipes';
-import { User } from '../user.dto';
+import { UsersDto } from '../user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -12,7 +12,7 @@ export class UsersController {
     @Get(':orderDirection')
     async index(
         @Param('orderDirection', new ValidateOrderDirection()) orderDirection,
-    ): Promise<User[]> {
+    ): Promise<UsersDto> {
         return this.usersService.findAll(orderDirection);
     }
 

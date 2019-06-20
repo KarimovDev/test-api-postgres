@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { AxiosResponse } from 'axios';
 import { Observable } from 'rxjs';
-import { UsersResponse, User, UserDTO } from '../user.dto';
+import { UsersResponseVkDto, User, UserVkDto, UsersDto } from '../user.dto';
 import { RedisService } from 'nestjs-redis';
 import { ConfigService } from 'src/config.service';
 import { Redis } from 'ioredis';
@@ -26,7 +26,7 @@ export class UsersService implements OnModuleInit {
         this.client = await this.redisService.getClient();
     }
 
-    getUser(idString: string): Observable<AxiosResponse<UsersResponse>> {
+    getUser(idString: string): Observable<AxiosResponse<UsersResponseVkDto>> {
         const parsed = {
             user_ids: idString,
             v: '5.95',
@@ -52,7 +52,7 @@ export class UsersService implements OnModuleInit {
         };
     }
 
-    async findAll(orderDirection: 'ASC' | 'DESC'): Promise<User[]> {
+    async findAll(orderDirection: 'ASC' | 'DESC'): Promise<UsersDto> {
         const notes = await this.noteRepository.find({
             order: {
                 dateAdd: orderDirection,
@@ -61,6 +61,7 @@ export class UsersService implements OnModuleInit {
         const users: User[] = [];
         let usersString = '';
         const usersMap = new Map();
+        let error: any;
 
         for (const [i, el] of notes.entries()) {
             const redisUser = (await this.client.hgetall(
@@ -82,21 +83,25 @@ export class UsersService implements OnModuleInit {
 
         if (usersString !== '') {
             const vkResponse = await this.getUser(usersString).toPromise();
-            for (const el of vkResponse.data.response) {
-                const i = usersMap.get(el.id);
-                users[i].firstName = el.first_name;
-                users[i].lastName = el.last_name;
-                users[i].image = el.photo_200_orig;
-                this.client.hmset(el.id.toString(), users[i]).then(() => {
-                    this.client.expire(
-                        el.id.toString(),
-                        Number(this.config.get('EXPIRE_TIME')),
-                    );
-                });
+            if (vkResponse.data.error) {
+                error = vkResponse.data.error;
+            } else {
+                for (const el of vkResponse.data.response) {
+                    const i = usersMap.get(el.id);
+                    users[i].firstName = el.first_name;
+                    users[i].lastName = el.last_name;
+                    users[i].image = el.photo_200_orig;
+                    this.client.hmset(el.id.toString(), users[i]).then(() => {
+                        this.client.expire(
+                            el.id.toString(),
+                            Number(this.config.get('EXPIRE_TIME')),
+                        );
+                    });
+                }
             }
         }
 
-        return users;
+        return error ? { users, error } : { users };
     }
 
     async create(note: Note): Promise<User> {
@@ -119,16 +124,20 @@ export class UsersService implements OnModuleInit {
             const vkResponse = await this.getUser(
                 savedNote.id.toString(),
             ).toPromise();
-            const vkUser = vkResponse.data.response[0] as UserDTO;
-            user.firstName = vkUser.first_name;
-            user.lastName = vkUser.last_name;
-            user.image = vkUser.photo_200_orig;
-            this.client.hmset(vkUser.id.toString(), user).then(() => {
-                this.client.expire(
-                    vkUser.id.toString(),
-                    Number(this.config.get('EXPIRE_TIME')),
-                );
-            });
+            if (vkResponse.data.error) {
+                user.error = vkResponse.data.error;
+            } else {
+                const vkUser = vkResponse.data.response[0] as UserVkDto;
+                user.firstName = vkUser.first_name;
+                user.lastName = vkUser.last_name;
+                user.image = vkUser.photo_200_orig;
+                this.client.hmset(vkUser.id.toString(), user).then(() => {
+                    this.client.expire(
+                        vkUser.id.toString(),
+                        Number(this.config.get('EXPIRE_TIME')),
+                    );
+                });
+            }
         }
 
         return user;
