@@ -1,12 +1,13 @@
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
 @Injectable()
-export class ValidateObject implements PipeTransform<string> {
+export class ValidateOrderDirection implements PipeTransform<string> {
     async transform(value: string) {
-        const id = Number(value);
-        const isValid = id.toString().length === 7;
+        const isValid = value === 'ASC' || value === 'DESC';
         if (!isValid) {
-            throw new BadRequestException('Invalid ID!');
+            throw new BadRequestException(
+                'Invalid order direction! Must be ASC or DESC',
+            );
         }
         return value;
     }

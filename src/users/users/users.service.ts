@@ -44,6 +44,7 @@ export class UsersService implements OnModuleInit {
     getEmptyUser(): User {
         return {
             id: 0,
+            dateAdd: new Date(0),
             firstName: '',
             lastName: '',
             image: '',
@@ -51,8 +52,12 @@ export class UsersService implements OnModuleInit {
         };
     }
 
-    async findAll(): Promise<User[]> {
-        const notes = await this.noteRepository.find();
+    async findAll(orderDirection: 'ASC' | 'DESC'): Promise<User[]> {
+        const notes = await this.noteRepository.find({
+            order: {
+                dateAdd: orderDirection,
+            },
+        });
         const users: User[] = [];
         let usersString = '';
         const usersMap = new Map();
@@ -64,6 +69,7 @@ export class UsersService implements OnModuleInit {
             users[i] = this.getEmptyUser();
             users[i].id = el.id;
             users[i].note = el.note;
+            users[i].dateAdd = el.dateAdd;
             if (redisUser.id) {
                 users[i].firstName = redisUser.firstName;
                 users[i].lastName = redisUser.lastName;
@@ -94,6 +100,7 @@ export class UsersService implements OnModuleInit {
     }
 
     async create(note: Note): Promise<User> {
+        note.dateAdd = new Date();
         const savedNote = await this.noteRepository.save(note);
 
         const redisUser = (await this.client.hgetall(
@@ -103,6 +110,7 @@ export class UsersService implements OnModuleInit {
         const user: User = this.getEmptyUser();
         user.id = savedNote.id;
         user.note = savedNote.note;
+        user.dateAdd = savedNote.dateAdd;
         if (redisUser.id) {
             user.firstName = redisUser.firstName;
             user.lastName = redisUser.lastName;

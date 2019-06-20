@@ -11,6 +11,7 @@ export interface UserDTO {
 
 export interface User {
     id: number;
+    dateAdd: Date;
     firstName: string;
     lastName: string;
     image: string;
